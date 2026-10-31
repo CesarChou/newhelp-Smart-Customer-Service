@@ -61,6 +61,8 @@ def get_chat_model() -> BaseChatModel:
 def get_structured_llm(schema: type[BaseModel]) -> Runnable:
     """Return ``get_chat_model()`` wrapped with structured output for ``schema``.
 
-    Uses the default ``function_calling`` method.
+    Explicitly uses ``function_calling`` (tools/tool_choice). The default in
+    langchain-openai 1.7.x is ``json_schema``, which sends a ``response_format``
+    that DeepSeek rejects with "response_format type is unavailable".
     """
-    return get_chat_model().with_structured_output(schema)
+    return get_chat_model().with_structured_output(schema, method="function_calling")
