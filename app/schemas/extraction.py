@@ -32,3 +32,9 @@ class AfterSaleExtraction(BaseModel):
     expected_solution: str | None = Field(
         default=None, description="期望方案（自由文本），无法识别时为空"
     )
+
+
+class ExtractRequest(BaseModel):
+    """``POST /extract`` 的请求体（Task 6）。"""
+
+    text: str
