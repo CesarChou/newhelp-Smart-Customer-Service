@@ -3,7 +3,8 @@
 ``SessionStore`` keeps a plain ``dict[str, list[BaseMessage]]`` and returns a
 trimmed history on ``get_history``:
 
-1. Tail-trim to the last ``context_max_messages`` messages.
+1. Tail-trim to the last ``context_max_messages`` messages, re-inserting the
+   leading ``SystemMessage`` if the slice cut it off.
 2. Coarse-estimate tokens as ``sum(len(content) / chars_per_token)``
    (list-of-blocks content is flattened to text first).
 3. While over ``context_max_tokens``, drop from the OLDEST end, always
@@ -55,7 +56,18 @@ class SessionStore:
         if not stored:
             return []
 
-        history = list(stored[-settings.context_max_messages :])
+        if settings.context_max_messages > 0:
+            history = list(stored[-settings.context_max_messages :])
+        else:
+            history = []
+
+        # The tail slice above can cut off the leading SystemMessage; the
+        # global constraint requires it to stay at the front.
+        leading_system = next(
+            (m for m in stored if isinstance(m, SystemMessage)), None
+        )
+        if leading_system is not None and all(m is not leading_system for m in history):
+            history.insert(0, leading_system)
 
         # The latest (most recent) user message must never be trimmed away.
         latest_user: BaseMessage | None = None

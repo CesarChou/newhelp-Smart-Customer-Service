@@ -58,6 +58,21 @@ def test_tail_trim_to_context_max_messages(monkeypatch):
     assert [m.content for m in history] == ["turn-2", "turn-3", "turn-4"]
 
 
+def test_tail_trim_preserves_leading_system(monkeypatch):
+    monkeypatch.setattr("app.config.settings.context_max_messages", 3)
+    monkeypatch.setattr("app.config.settings.context_max_tokens", 100000)
+
+    store = SessionStore()
+    store.append("s", SystemMessage("sys"))
+    for i in range(4):
+        store.append("s", HumanMessage(f"turn-{i}"))
+
+    history = store.get_history("s")
+    # leading system message survives the tail slice and stays at the front
+    assert history[0] == SystemMessage("sys")
+    assert [m.content for m in history[1:]] == ["turn-1", "turn-2", "turn-3"]
+
+
 def test_token_estimate_flattens_list_content(monkeypatch):
     monkeypatch.setattr("app.config.settings.context_max_tokens", 20)
     monkeypatch.setattr("app.config.settings.context_max_messages", 100)
