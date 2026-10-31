@@ -72,3 +72,33 @@ async def test_stream_chat_yields_once_on_empty_reply(monkeypatch):
 
     tokens = [tok async for tok in stream_chat("s", "hi")]
     assert tokens == [""]
+
+
+class _ListContentModel(SimpleChatModel):
+    """Fake model yielding a chunk whose content is a list of content blocks."""
+
+    @property
+    def _llm_type(self) -> str:
+        return "list-content-model"
+
+    def _call(self, messages, stop=None, run_manager=None, **kwargs):
+        return "你好"
+
+    async def _astream(self, messages, stop=None, run_manager=None, **kwargs):
+        yield ChatGenerationChunk(
+            message=AIMessageChunk(
+                content=[{"type": "text", "text": "你好"}], chunk_position="last"
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_flattens_list_content_chunks(monkeypatch):
+    """List-of-blocks chunk content must be flattened to a str (not leaked as a
+    list), so the route's ``"".join(accumulated)`` never hits a TypeError."""
+    monkeypatch.setattr("app.services.chat.get_chat_model", lambda: _ListContentModel())
+    monkeypatch.setattr("app.services.chat.store", SessionStore())
+
+    tokens = [tok async for tok in stream_chat("s", "hi")]
+    assert tokens == ["你好"]
+    assert all(isinstance(tok, str) for tok in tokens)

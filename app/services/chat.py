@@ -18,7 +18,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from app.core.llm import get_chat_model
 from app.prompts.customer_service import CUSTOMER_SERVICE_SYSTEM_PROMPT
-from app.services.memory import SessionStore
+from app.services.memory import SessionStore, _content_to_text
 
 # Shared in-memory session store. The route layer (Task 6) appends the user
 # turn and the assistant reply here; ``assemble_messages`` reads from it.
@@ -55,7 +55,7 @@ async def stream_chat(session_id: str, user_input: str) -> AsyncIterator[str]:
 
     yielded = False
     async for chunk in model.astream(messages):
-        content = chunk.content
+        content = _content_to_text(chunk.content)
         yielded = True
         yield content if content else ""
     if not yielded:

@@ -135,3 +135,43 @@ async def test_extract_falls_back_to_other_on_persistent_failure(monkeypatch):
     assert result.order_id is None
     assert result.expected_solution is None
     assert len(fake.calls) == 2  # 一次原样、一次追加提示，仍失败则兜底
+
+
+@pytest.mark.asyncio
+async def test_extract_falls_back_on_plain_value_error(monkeypatch):
+    """A malformed model output surfacing as a plain ``ValueError`` (e.g.
+    ``json.JSONDecodeError`` for invalid JSON / non-dict tool args) must not
+    500: retry once with the enum hint, then fall back to ``其他``."""
+
+    class _ValueErrorLLM:
+        def __init__(self):
+            self.calls = []
+
+        async def ainvoke(self, messages):
+            self.calls.append(messages)
+            raise ValueError("tool args must be a dict")
+
+    fake = _ValueErrorLLM()
+    monkeypatch.setattr("app.services.extraction.get_structured_llm", lambda _: fake)
+
+    result = await extract("随便什么")
+
+    assert result.request_type == RequestType.其他
+    assert result.order_id is None
+    assert result.expected_solution is None
+    assert len(fake.calls) == 2  # 原样 + 追加提示，仍抛 ValueError 则兜底
+
+
+@pytest.mark.asyncio
+async def test_extract_falls_back_on_none_no_tool_call(monkeypatch):
+    """The wrapper returns ``None`` when the model emits no tool call at all;
+    treat that like a parse failure and fall back after the retry."""
+    fake = _FakeStructuredLLM(result=None)
+    monkeypatch.setattr("app.services.extraction.get_structured_llm", lambda _: fake)
+
+    result = await extract("随便什么")
+
+    assert result.request_type == RequestType.其他
+    assert result.order_id is None
+    assert result.expected_solution is None
+    assert len(fake.calls) == 2  # 一次原样、一次追加提示，均无 tool call 则兜底

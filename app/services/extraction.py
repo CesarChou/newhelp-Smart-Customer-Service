@@ -44,8 +44,12 @@ async def extract(text: str) -> AfterSaleExtraction:
     for extra_hint in (False, True):
         try:
             result = await llm.ainvoke(_messages(text, extra_hint=extra_hint))
-        except (OutputParserException, ValidationError):
-            continue  # parse/validation failure -> retry with hint, then fall back
+        except (OutputParserException, ValidationError, ValueError):
+            # Parse/validation/malformed-output failures (e.g. a plain
+            # ValueError from non-dict tool args or invalid JSON) -> retry
+            # with the hint, then fall back. Genuine upstream/network errors
+            # (not ValueError subclasses) still propagate.
+            continue
 
         if isinstance(result, AfterSaleExtraction):
             return result
